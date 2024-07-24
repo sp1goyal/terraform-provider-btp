@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -43,7 +44,7 @@ func (rs *subaccountSubscriptionResource) Configure(_ context.Context, req resou
 	rs.cli = req.ProviderData.(*btpcli.ClientFacade)
 }
 
-func (rs *subaccountSubscriptionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (rs *subaccountSubscriptionResource) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `Subscribes a subaccount to a multitenant application.
 Custom or partner-developed applications are currently not supported.
@@ -79,6 +80,12 @@ You must be assigned to the admin role of the subaccount.`,
 					jsonvalidator.ValidJSON(),
 				},
 			},
+			"timeouts": timeouts.Attributes(ctx, timeouts.Opts{
+				Create:            true,
+				CreateDescription: "Timeout for subscribing to an application.",
+				Delete:            true,
+				DeleteDescription: "Timeout for deleting the subscription to an application.",
+			}),
 			"additional_plan_features": schema.SetAttribute{
 				ElementType:         types.StringType,
 				MarkdownDescription: "The list of features specific to this plan.",
@@ -228,7 +235,9 @@ func (rs *subaccountSubscriptionResource) Create(ctx context.Context, req resour
 		return
 	}
 
-	timeout := 60 * time.Minute
+	timeout, diags := plan.Timeouts.Create(ctx, tfutils.DefaultTimeout)
+	resp.Diagnostics.Append(diags...)
+	
 	delay, minTimeout := tfutils.CalculateDelayAndMinTimeOut(timeout)
 
 	createStateConf := &tfutils.StateChangeConf{
