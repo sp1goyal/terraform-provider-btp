@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -217,6 +216,8 @@ func (rs *subaccountSubscriptionResource) Read(ctx context.Context, req resource
 
 	resp.Diagnostics.Append(diags...)
 
+	newState.Timeouts = state.Timeouts
+
 	diags = resp.State.Set(ctx, &newState)
 	resp.Diagnostics.Append(diags...)
 }
@@ -269,6 +270,7 @@ func (rs *subaccountSubscriptionResource) Create(ctx context.Context, req resour
 
 	updatedPlan, diags := subaccountSubscriptionValueFrom(ctx, updatedRes.(saas_manager_service.EntitledApplicationsResponseObject))
 	updatedPlan.Parameters = plan.Parameters
+	updatedPlan.Timeouts = plan.Timeouts
 	resp.Diagnostics.Append(diags...)
 
 	diags = resp.State.Set(ctx, &updatedPlan)
@@ -303,7 +305,9 @@ func (rs *subaccountSubscriptionResource) Delete(ctx context.Context, req resour
 		return
 	}
 
-	timeout := 60 * time.Minute
+	timeout, diags := state.Timeouts.Delete(ctx, tfutils.DefaultTimeout)
+	resp.Diagnostics.Append(diags...)
+
 	delay, minTimeout := tfutils.CalculateDelayAndMinTimeOut(timeout)
 
 	deleteStateConf := &tfutils.StateChangeConf{
